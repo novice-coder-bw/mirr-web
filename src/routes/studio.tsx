@@ -334,7 +334,7 @@ function StemCard({ stem }: { stem: Stem }) {
           {playing ? <Pause /> : <Play />} {playing ? "Pause" : "Play"}
         </Button>
         <Button size="sm" variant="outline" disabled={!ready || !realUrl} asChild={!!realUrl && ready} aria-label={`Download ${label} stem`}>
-          {realUrl && ready ? <a href={realUrl} download><Download /> WAV</a> : <span><Download /> WAV</span>}
+          {realUrl && ready ? <a href={realUrl} download><Download /> WAV</a> : <span className="inline-flex items-center gap-2"><Download /> WAV</span>}
         </Button>
       </div>
     </div>
