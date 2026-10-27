@@ -17,7 +17,7 @@ export interface AnalysisResult {
 export interface Stem {
   name: StemName;
   status: StageStatus;
-  url?: string;
+  url?: string | undefined;
   waveform: number[];
 }
 
@@ -28,8 +28,8 @@ export interface Session {
   separation: { status: StageStatus; progress: number; error?: string; stems: Stem[] };
 }
 
-const BASE_URL = (import.meta.env.VITE_BACKEND_URL as string | undefined)?.replace(/\/$/, "") ?? "";
-export const USE_MOCK = import.meta.env.VITE_USE_MOCK !== "false";
+const BASE_URL = (import.meta.env["VITE_BACKEND_URL"] as string | undefined)?.replace(/\/$/, "") ?? "";
+export const USE_MOCK = import.meta.env["VITE_USE_MOCK"] !== "false";
 
 async function json<T>(res: Response): Promise<T> {
   if (!res.ok) throw new Error((await res.text()) || `Request failed (${res.status})`);
