@@ -8,3 +8,5 @@
 > Commits you push to the connected branch sync back to Lovable and show up in
 > the editor, so keep the branch in a working state.
 <!-- LOVABLE:END -->
+
+- All backend calls go through src/lib/api.ts (mock by default; VITE_USE_MOCK=false + VITE_BACKEND_URL for the real API) so the UI never fetches directly.
