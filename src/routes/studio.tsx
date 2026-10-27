@@ -121,6 +121,9 @@ function DropZone({ onFile, disabled }: { onFile: (f: File) => void; disabled: b
   const [over, setOver] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   return (
+    <>
+      <input ref={input} type="file" accept={ACCEPT} className="sr-only" tabIndex={-1}
+        onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); e.target.value = ""; }} />
     <button
       type="button"
       disabled={disabled}
@@ -138,9 +141,8 @@ function DropZone({ onFile, disabled }: { onFile: (f: File) => void; disabled: b
       <UploadCloud className="size-8 text-accent" />
       <span className="font-display font-semibold">Drop your track here</span>
       <span className="text-sm text-muted-foreground">WAV or MP3 · or click to browse</span>
-      <input ref={input} type="file" accept={ACCEPT} className="sr-only" tabIndex={-1}
-        onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); e.target.value = ""; }} />
     </button>
+    </>
   );
 }
 
@@ -318,7 +320,7 @@ function StemCard({ stem }: { stem: Stem }) {
     }
     setPlaying(!playing);
   };
-  const label = stem.name[0].toUpperCase() + stem.name.slice(1);
+  const label = stem.name.charAt(0).toUpperCase() + stem.name.slice(1);
 
   return (
     <div className="rounded-lg border border-border bg-muted/30 p-4 transition hover:border-primary/50">
