@@ -28,7 +28,8 @@ export interface Session {
   separation: { status: StageStatus; progress: number; error?: string; stems: Stem[] };
 }
 
-const BASE_URL = (import.meta.env["VITE_BACKEND_URL"] as string | undefined)?.replace(/\/$/, "") ?? "";
+const BASE_URL =
+  (import.meta.env["VITE_BACKEND_URL"] as string | undefined)?.replace(/\/$/, "") ?? "";
 export const USE_MOCK = import.meta.env["VITE_USE_MOCK"] !== "false";
 
 async function json<T>(res: Response): Promise<T> {
@@ -87,7 +88,10 @@ const strip = (s: Session & { _aStart?: number; _sStart?: number }): Session => 
 };
 
 // ---------- public API ----------
-export async function uploadFile(file: File, onProgress: (pct: number) => void): Promise<{ file_id: string }> {
+export async function uploadFile(
+  file: File,
+  onProgress: (pct: number) => void,
+): Promise<{ file_id: string }> {
   if (USE_MOCK) {
     for (let p = 0; p <= 100; p += 5) {
       onProgress(p);
@@ -107,9 +111,12 @@ export async function uploadFile(file: File, onProgress: (pct: number) => void):
     const form = new FormData();
     form.append("file", file);
     xhr.open("POST", `${BASE_URL}/api/upload`);
-    xhr.upload.onprogress = (e) => e.lengthComputable && onProgress(Math.round((e.loaded / e.total) * 100));
+    xhr.upload.onprogress = (e) =>
+      e.lengthComputable && onProgress(Math.round((e.loaded / e.total) * 100));
     xhr.onload = () =>
-      xhr.status < 300 ? resolve(JSON.parse(xhr.responseText)) : reject(new Error(xhr.responseText || `Upload failed (${xhr.status})`));
+      xhr.status < 300
+        ? resolve(JSON.parse(xhr.responseText))
+        : reject(new Error(xhr.responseText || `Upload failed (${xhr.status})`));
     xhr.onerror = () => reject(new Error("Network error — is the backend running?"));
     xhr.send(form);
   });
