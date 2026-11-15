@@ -22,13 +22,18 @@ import { Waveform } from "@/components/Waveform";
 import { cn } from "@/lib/utils";
 import { requireAuth } from "@/lib/auth";
 import {
+  describeError,
   getSession,
+  MAX_UPLOAD_MB,
+  POLL_INTERVAL_MS,
   refreshStemUrl,
   STEMS,
   startAnalysis,
   startSeparation,
   uploadFile,
   USE_MOCK,
+  validateUpload,
+  type ErrorDescription,
   type Session,
   type StageStatus,
   type Stem,
@@ -60,12 +65,15 @@ function Studio() {
   const [file, setFile] = useState<File | null>(null);
   const [uploadPct, setUploadPct] = useState(0);
   const [uploadState, setUploadState] = useState<"idle" | "uploading" | "done" | "failed">("idle");
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ErrorDescription | null>(null);
+  const fail = (e: unknown) => setError(describeError(e));
   const [session, setSession] = useState<Session | null>(null);
 
   const doUpload = useCallback(async (f: File) => {
-    if (!/\.(wav|mp3)$/i.test(f.name)) {
-      setError("Only WAV or MP3 files are supported.");
+    try {
+      validateUpload(f);
+    } catch (e) {
+      setError(describeError(e));
       return;
     }
     setFile(f);
@@ -79,7 +87,7 @@ function Studio() {
       setUploadState("done");
     } catch (e) {
       setUploadState("failed");
-      setError((e as Error).message);
+      setError(describeError(e));
     }
   }, []);
 
@@ -92,9 +100,9 @@ function Studio() {
       try {
         setSession(await getSession(session.file_id));
       } catch (e) {
-        setError((e as Error).message);
+        fail(e);
       }
-    }, 700);
+    }, POLL_INTERVAL_MS);
     return () => clearInterval(id);
   }, [running, session?.file_id]);
 
@@ -105,7 +113,7 @@ function Studio() {
       await fn(session.file_id);
       setSession(await getSession(session.file_id));
     } catch (e) {
-      setError((e as Error).message);
+      fail(e);
     }
   };
 
@@ -150,9 +158,9 @@ function Studio() {
           {error && (
             <Alert variant="destructive">
               <AlertCircle />
-              <AlertTitle>Something went wrong</AlertTitle>
+              <AlertTitle>{error.title}</AlertTitle>
               <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
-                <span>{error}</span>
+                <span>{error.message}</span>
                 {file && uploadState === "failed" && (
                   <Button size="sm" variant="outline" onClick={() => doUpload(file)}>
                     <RotateCcw /> Retry upload
@@ -214,11 +222,13 @@ function DropZone({ onFile, disabled }: { onFile: (f: File) => void; disabled: b
           "hover:border-primary/70 hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60",
           over && "border-accent bg-accent/10 shadow-glow",
         )}
-        aria-label="Upload audio file. Drop a WAV or MP3 here or press to browse."
+        aria-label="Upload audio file. Drop a WAV or MP3 up to 100 MB here or press to browse."
       >
         <UploadCloud className="size-8 text-accent" />
         <span className="font-display font-semibold">Drop your track here</span>
-        <span className="text-sm text-muted-foreground">WAV or MP3 · or click to browse</span>
+        <span className="text-sm text-muted-foreground">
+          WAV or MP3 up to {MAX_UPLOAD_MB} MB · or click to browse
+        </span>
       </button>
     </>
   );

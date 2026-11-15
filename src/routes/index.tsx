@@ -32,7 +32,7 @@ const steps = [
   {
     icon: Upload,
     title: "Upload",
-    body: "Drop a WAV or MP3 up to 200 MB. Your mix stays private to your session.",
+    body: "Drop a WAV or MP3 up to 100 MB. Your mix stays private to your session.",
   },
   {
     icon: Gauge,
