@@ -23,5 +23,15 @@
 *   **Uploads:** Do NOT send files directly to FastAPI. Use the presigned flow: `POST /api/v1/uploads/presign` → `PUT` to R2 → `POST /api/v1/uploads/complete`.
 
 ## 🏗️ UI/UX Guidelines
-*   **Polling:** When waiting for Celery tasks, poll `/api/v1/sessions/{id}` every 2000ms.
+*   **Polling:** When waiting for Celery tasks, poll `GET /api/v1/session/{file_id}` every 2000ms.
 *   **File Size:** Enforce a 100MB limit (matching backend `MAX_UPLOAD_MB`).
+
+## 🤝 Lovable / Agent Compatibility Rules
+*   **Package manager:** `bun` only. Commit `bun.lock`; never add `package-lock.json`, `yarn.lock` or `pnpm-lock.yaml`.
+*   **Do NOT edit Lovable-managed files:** `src/integrations/supabase/*`, `vite.config.ts`, `bunfig.toml`, `.lovable/`, `src/lib/lovable-error-reporting.ts`, or the `LOVABLE:BEGIN/END` block above.
+*   **Never rewrite history on `main`** (no force-push/rebase/amend/squash of pushed commits) and never leave `main` broken.
+*   **Routes** live in `src/routes/`. After changing routes run `bun run build` and commit `src/routeTree.gen.ts`.
+*   **No Cloudflare-specific code:** no `cloudflare:workers` imports, bindings, or `wrangler` config files.
+*   **API contract:** `src/api/openapi.json` is the backend snapshot; regenerate `src/api/schema.d.ts` with `bun run api:types` and use those types in `src/lib/api.ts`. CI fails if the generated file is stale.
+*   **Auth:** `/studio` is guarded client-side (`ssr: false` + `beforeLoad` in `src/routes/studio.tsx`); a `401` from the backend signs out locally and redirects to `/login` (handled in `src/lib/api.ts`).
+*   **Before pushing:** `bun run lint`, `bunx tsc --noEmit`, `bun run test`, `bun run build` must pass.

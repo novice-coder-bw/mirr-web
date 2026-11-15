@@ -1,0 +1,36 @@
+name: Contract drift
+
+# Opens an issue labeled `devin` when CI fails on an `api-contract*` branch
+# (e.g. after src/api/openapi.json is refreshed from the backend).
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+
+permissions:
+  issues: write
+
+jobs:
+  open-issue:
+    if: >-
+      github.event.workflow_run.conclusion == 'failure' &&
+      startsWith(github.event.workflow_run.head_branch, 'api-contract')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Open or update contract drift issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          BRANCH: ${{ github.event.workflow_run.head_branch }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+        run: |
+          gh label create devin --color 5319e7 --description "Work for Devin" 2>/dev/null || true
+          title="API contract drift on ${BRANCH}"
+          body=$(printf 'CI failed on `%s` (commit %s).\n\nRun: %s\n\nThe backend OpenAPI contract in `src/api/openapi.json` no longer matches the frontend. Regenerate types with `bun run api:types`, update `src/lib/api.ts`, and make CI pass.' "$BRANCH" "$SHA" "$RUN_URL")
+          existing=$(gh issue list --state open --label devin --search "\"$title\" in:title" --json number --jq '.[0].number')
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "$body"
+          else
+            gh issue create --title "$title" --label devin --body "$body"
+          fi
