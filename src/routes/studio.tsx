@@ -23,6 +23,8 @@ import { cn } from "@/lib/utils";
 import { requireAuth } from "@/lib/auth";
 import {
   getSession,
+  refreshStemUrl,
+  STEMS,
   startAnalysis,
   startSeparation,
   uploadFile,
@@ -366,12 +368,12 @@ function AnalysisPanel({ session, onRetry }: { session: Session; onRetry: () => 
         {status === "completed" && result && (
           <div className="space-y-5">
             <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-              <Metric label="Key" value={result.key} />
-              <Metric label="Tempo" value={`${result.bpm} BPM`} />
-              <Metric label="Energy" value={`${Math.round(result.energy * 100)}%`} />
-              <Metric label="Loudness" value={`${result.loudness_lufs} LUFS`} />
+              <Metric label="Key" value={result.key ?? "—"} />
+              <Metric label="Tempo" value={fmt(result.bpm, (v) => `${Math.round(v)} BPM`)} />
+              <Metric label="Energy" value={fmt(result.energy, (v) => `${Math.round(v * 100)}%`)} />
+              <Metric label="Loudness" value={fmt(result.loudness_lufs, (v) => `${v} LUFS`)} />
             </div>
-            <Waveform peaks={result.waveform} />
+            {result.waveform.length > 0 && <Waveform peaks={result.waveform} />}
             <div className="flex flex-wrap gap-2">
               {result.tags.map((t) => (
                 <Badge key={t} variant="secondary">
@@ -385,6 +387,8 @@ function AnalysisPanel({ session, onRetry }: { session: Session; onRetry: () => 
     </Card>
   );
 }
+
+const fmt = (v: number | null, f: (v: number) => string) => (v === null ? "—" : f(v));
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
@@ -410,7 +414,6 @@ function FailedRow({ message, onRetry }: { message: string; onRetry: () => void 
 
 function StemsPanel({ session, onRetry }: { session: Session; onRetry: () => void }) {
   const { status, progress, stems, error } = session.separation;
-  const names = ["vocals", "drums", "bass", "other"] as const;
   return (
     <Card>
       <CardHeader className="flex-row items-center justify-between space-y-0">
@@ -430,10 +433,10 @@ function StemsPanel({ session, onRetry }: { session: Session; onRetry: () => voi
         {isActive(status) && <Progress value={progress} aria-label="Separation progress" />}
         {status !== "idle" && status !== "failed" && (
           <div className="grid gap-3 sm:grid-cols-2">
-            {names.map((n) => {
+            {STEMS.map((n) => {
               const stem = stems.find((x) => x.name === n);
               return stem ? (
-                <StemCard key={n} stem={stem} />
+                <StemCard key={n} stem={stem} fileId={session.file_id} />
               ) : (
                 <Skeleton key={n} className="h-36" />
               );
@@ -445,12 +448,17 @@ function StemsPanel({ session, onRetry }: { session: Session; onRetry: () => voi
   );
 }
 
-function StemCard({ stem }: { stem: Stem }) {
+function StemCard({ stem, fileId }: { stem: Stem; fileId: string }) {
   const [playing, setPlaying] = useState(false);
   const [pos, setPos] = useState(0);
+  const [url, setUrl] = useState(stem.url);
   const audio = useRef<HTMLAudioElement | null>(null);
+  const refetched = useRef(false);
   const ready = stem.status === "completed";
-  const realUrl = stem.url && !stem.url.startsWith("mock://") ? stem.url : undefined;
+  const realUrl = url && !url.startsWith("mock://") ? url : undefined;
+
+  useEffect(() => setUrl(stem.url), [stem.url]);
+  useEffect(() => () => audio.current?.pause(), []);
 
   useEffect(() => {
     if (!playing || realUrl) return;
@@ -458,14 +466,27 @@ function StemCard({ stem }: { stem: Stem }) {
     return () => clearInterval(id);
   }, [playing, realUrl]);
 
+  // Presigned URLs expire: on a load failure, refetch the session once for a fresh URL and retry.
+  const onLoadError = async (el: HTMLAudioElement) => {
+    if (refetched.current) return setPlaying(false);
+    refetched.current = true;
+    const fresh = await refreshStemUrl(fileId, stem.name).catch(() => undefined);
+    if (!fresh) return setPlaying(false);
+    setUrl(fresh);
+    el.src = fresh;
+    el.play().catch(() => setPlaying(false));
+  };
+
   const toggle = () => {
     if (realUrl) {
-      audio.current ??= Object.assign(new Audio(realUrl), {});
+      audio.current ??= new Audio(realUrl);
       const el = audio.current;
       el.ontimeupdate = () => setPos(el.currentTime / (el.duration || 1));
       el.onended = () => setPlaying(false);
+      el.onplaying = () => (refetched.current = false);
+      el.onerror = () => void onLoadError(el);
       if (playing) el.pause();
-      else void el.play();
+      else el.play().catch(() => {});
     }
     setPlaying(!playing);
   };
@@ -477,8 +498,14 @@ function StemCard({ stem }: { stem: Stem }) {
         <span className="font-display font-semibold">{label}</span>
         <StatusBadge status={stem.status} />
       </div>
-      {ready ? (
+      {ready && stem.waveform.length > 0 ? (
         <Waveform peaks={stem.waveform} progress={pos} className="h-12" />
+      ) : ready ? (
+        <Progress
+          value={pos * 100}
+          className="my-5 h-2"
+          aria-label={`${label} playback position`}
+        />
       ) : (
         <Skeleton className="h-12" />
       )}
