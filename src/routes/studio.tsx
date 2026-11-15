@@ -68,6 +68,7 @@ function Studio() {
   const [error, setError] = useState<ErrorDescription | null>(null);
   const fail = (e: unknown) => setError(describeError(e));
   const [session, setSession] = useState<Session | null>(null);
+  const uploaded = useRef<{ file: File; id: string } | null>(null);
 
   const doUpload = useCallback(async (f: File) => {
     try {
@@ -82,7 +83,13 @@ function Studio() {
     setUploadState("uploading");
     setUploadPct(0);
     try {
-      const { file_id } = await uploadFile(f, setUploadPct);
+      // Retrying after a failed session fetch must not upload (and start analysis) twice.
+      const file_id =
+        uploaded.current?.file === f
+          ? uploaded.current.id
+          : (await uploadFile(f, setUploadPct)).file_id;
+      uploaded.current = { file: f, id: file_id };
+      setUploadPct(100);
       setSession(await getSession(file_id));
       setUploadState("done");
     } catch (e) {
@@ -446,7 +453,7 @@ function StemsPanel({ session, onRetry }: { session: Session; onRetry: () => voi
             {STEMS.map((n) => {
               const stem = stems.find((x) => x.name === n);
               return stem ? (
-                <StemCard key={n} stem={stem} fileId={session.file_id} />
+                <StemCard key={`${session.file_id}:${n}`} stem={stem} fileId={session.file_id} />
               ) : (
                 <Skeleton key={n} className="h-36" />
               );
@@ -481,10 +488,25 @@ function StemCard({ stem, fileId }: { stem: Stem; fileId: string }) {
     if (refetched.current) return setPlaying(false);
     refetched.current = true;
     const fresh = await refreshStemUrl(fileId, stem.name).catch(() => undefined);
-    if (!fresh) return setPlaying(false);
+    if (!fresh) {
+      refetched.current = false;
+      return setPlaying(false);
+    }
     setUrl(fresh);
     el.src = fresh;
     el.play().catch(() => setPlaying(false));
+  };
+
+  // Presigned URLs may have expired by the time the user downloads; fetch a fresh one first.
+  const download = async (e: React.MouseEvent<HTMLAnchorElement>) => {
+    e.preventDefault();
+    const fresh = (await refreshStemUrl(fileId, stem.name).catch(() => undefined)) ?? realUrl;
+    if (!fresh) return;
+    if (fresh !== url) setUrl(fresh);
+    const a = document.createElement("a");
+    a.href = fresh;
+    a.download = "";
+    a.click();
   };
 
   const toggle = () => {
@@ -537,7 +559,7 @@ function StemCard({ stem, fileId }: { stem: Stem; fileId: string }) {
           aria-label={`Download ${label} stem`}
         >
           {realUrl && ready ? (
-            <a href={realUrl} download>
+            <a href={realUrl} download onClick={download}>
               <Download /> WAV
             </a>
           ) : (
