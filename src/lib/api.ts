@@ -1,6 +1,6 @@
 // API client for the music analysis backend.
-// Base URL: VITE_BACKEND_URL (e.g. http://localhost:8000). Empty = same origin (proxy-friendly).
-// Set VITE_USE_MOCK="false" to hit the real backend; mock mode is the default.
+// Base URL: VITE_BACKEND_URL (default https://mirr-web.duckdns.org).
+// Set VITE_USE_MOCK="true" to use the in-browser mock backend; live mode is the default.
 
 export type StageStatus = "idle" | "queued" | "processing" | "completed" | "failed";
 export type StemName = "vocals" | "drums" | "bass" | "other";
@@ -28,9 +28,11 @@ export interface Session {
   separation: { status: StageStatus; progress: number; error?: string; stems: Stem[] };
 }
 
-const BASE_URL =
-  (import.meta.env["VITE_BACKEND_URL"] as string | undefined)?.replace(/\/$/, "") ?? "";
-export const USE_MOCK = import.meta.env["VITE_USE_MOCK"] !== "false";
+const DEFAULT_BACKEND_URL = "https://mirr-web.duckdns.org";
+export const BASE_URL = (
+  (import.meta.env["VITE_BACKEND_URL"] as string | undefined) || DEFAULT_BACKEND_URL
+).replace(/\/$/, "");
+export const USE_MOCK = import.meta.env["VITE_USE_MOCK"] === "true";
 
 async function json<T>(res: Response): Promise<T> {
   if (!res.ok) throw new Error((await res.text()) || `Request failed (${res.status})`);
