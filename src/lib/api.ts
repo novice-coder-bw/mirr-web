@@ -2,6 +2,7 @@
 // Base URL: VITE_BACKEND_URL (default https://mirr-web.duckdns.org).
 // Set VITE_USE_MOCK="true" to use the in-browser mock backend; live mode is the default.
 
+import type { components } from "@/api/schema";
 import { supabase } from "@/integrations/supabase/client";
 import { LOGIN_PATH } from "@/lib/auth";
 
@@ -32,53 +33,16 @@ export interface Session {
   separation: { status: StageStatus; progress: number; error?: string; stems: Stem[] };
 }
 
-// ---------- backend contract (OpenAPI) ----------
-type BackendStageStatus = "pending" | "active" | "completed" | "failed";
-
-interface BackendSessionAnalysis {
-  status: BackendStageStatus;
-  bpm?: number | null;
-  key?: string | null;
-  structure?: string[] | null;
-  duration?: number | null;
-  message?: string | null;
-  next_action?: string | null;
-  [extra: string]: unknown;
-}
-
-interface BackendStemArtifact {
-  name: string;
-  url: string;
-  [extra: string]: unknown;
-}
-
-interface BackendSessionStems {
-  status: BackendStageStatus;
-  stems?: BackendStemArtifact[] | null;
-  message?: string | null;
-  next_action?: string | null;
-  [extra: string]: unknown;
-}
-
-export interface BackendSessionResponse {
-  file_id: string;
-  filename?: string | null;
-  analysis?: BackendSessionAnalysis | null;
-  stems?: BackendSessionStems | null;
-}
-
-interface PresignUploadResponse {
-  file_id: string;
-  object_key: string;
-  upload_url: string;
-  expires_in: number;
-}
-
-interface CompleteUploadResponse {
-  file_id: string;
-  status: "enqueued";
-  artifact_url: string;
-}
+// ---------- backend contract (generated from src/api/openapi.json via `bun run api:types`) ----------
+type Schemas = components["schemas"];
+type BackendStageStatus = Schemas["StageStatus"];
+export type BackendSessionResponse = Schemas["SessionResponse"];
+type PresignUploadRequest = Schemas["PresignUploadRequest"];
+type PresignUploadResponse = Schemas["PresignUploadResponse"];
+type CompleteUploadRequest = Schemas["CompleteUploadRequest"];
+type CompleteUploadResponse = Schemas["CompleteUploadResponse"];
+type AnalyzeRequest = Schemas["AnalyzeRequest"];
+type SeparateRequest = Schemas["SeparateRequest"];
 
 // ---------- config ----------
 const DEFAULT_BACKEND_URL = "https://mirr-web.duckdns.org";
@@ -391,12 +355,20 @@ export async function uploadFile(
   }
 
   onProgress(0);
-  const meta = { filename: file.name, content_type: contentType, size_bytes: file.size };
+  const meta: PresignUploadRequest = {
+    filename: file.name,
+    content_type: contentType,
+    size_bytes: file.size,
+  };
   const presign = await apiFetch<PresignUploadResponse>("/api/v1/uploads/presign", post(meta));
   await putToStorage(presign.upload_url, file, contentType, onProgress);
   const done = await apiFetch<CompleteUploadResponse>(
     "/api/v1/uploads/complete",
-    post({ ...meta, file_id: presign.file_id, object_key: presign.object_key }),
+    post({
+      ...meta,
+      file_id: presign.file_id,
+      object_key: presign.object_key,
+    } satisfies CompleteUploadRequest),
   );
   onProgress(100);
   return { file_id: done.file_id };
@@ -429,7 +401,7 @@ export async function startAnalysis(file_id: string): Promise<void> {
     s.analysis = { status: "queued", progress: 0 };
     return;
   }
-  await apiFetch("/api/v1/analyze", post({ file_id }));
+  await apiFetch("/api/v1/analyze", post({ file_id } satisfies AnalyzeRequest));
 }
 
 export async function startSeparation(file_id: string): Promise<void> {
@@ -440,5 +412,5 @@ export async function startSeparation(file_id: string): Promise<void> {
     s.separation = { status: "queued", progress: 0, stems: [] };
     return;
   }
-  await apiFetch("/api/v1/separate", post({ file_id }));
+  await apiFetch("/api/v1/separate", post({ file_id } satisfies SeparateRequest));
 }
