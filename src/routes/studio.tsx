@@ -20,6 +20,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { SiteHeader } from "@/components/SiteHeader";
 import { Waveform } from "@/components/Waveform";
 import { cn } from "@/lib/utils";
+import { requireAuth } from "@/lib/auth";
 import {
   getSession,
   startAnalysis,
@@ -32,6 +33,10 @@ import {
 } from "@/lib/api";
 
 export const Route = createFileRoute("/studio")({
+  ssr: false,
+  beforeLoad: async () => {
+    if (!USE_MOCK) await requireAuth();
+  },
   head: () => ({
     meta: [
       { title: "Studio — Stemlab" },
